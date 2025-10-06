@@ -1,0 +1,226 @@
+-- Ondeado_exe - HUD + AutoJoin funcional
+
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local MIN_DELAY = 0.1
+
+-- ---------- UI ----------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "Ondeado_exe"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local main = Instance.new("Frame")
+main.Name = "Main"
+main.Size = UDim2.new(0, 280, 0, 460)
+main.Position = UDim2.new(0.35, 0, 0.18, 0)
+main.BackgroundColor3 = Color3.fromRGB(23,23,30)
+main.BorderSizePixel = 0
+main.Active = true
+main.Draggable = true
+main.Parent = screenGui
+
+local uic = Instance.new("UICorner", main)
+uic.CornerRadius = UDim.new(0, 12)
+
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1,0,0,36)
+title.Position = UDim2.new(0,0,0,0)
+title.BackgroundTransparency = 1
+title.Text = "Ondeado_exe"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextColor3 = Color3.fromRGB(255,255,255)
+
+-- AutoJoin button
+local autoBtn = Instance.new("TextButton", main)
+autoBtn.Size = UDim2.new(1, -20, 0, 40)
+autoBtn.Position = UDim2.new(0, 10, 0, 46)
+autoBtn.BackgroundColor3 = Color3.fromRGB(40,40,55)
+autoBtn.Text = "Auto Join: OFF"
+autoBtn.Font = Enum.Font.GothamBold
+autoBtn.TextSize = 16
+autoBtn.TextColor3 = Color3.fromRGB(255,80,80)
+
+-- Min M/s
+local minLabel = Instance.new("TextLabel", main)
+minLabel.Position = UDim2.new(0, 10, 0, 98)
+minLabel.Size = UDim2.new(1, -20, 0, 20)
+minLabel.BackgroundTransparency = 1
+minLabel.Text = "Min M/s:"
+minLabel.Font = Enum.Font.Gotham
+minLabel.TextSize = 14
+minLabel.TextColor3 = Color3.fromRGB(230,230,230)
+
+local minBox = Instance.new("TextBox", main)
+minBox.Position = UDim2.new(0, 10, 0, 122)
+minBox.Size = UDim2.new(1, -20, 0, 34)
+minBox.BackgroundColor3 = Color3.fromRGB(40,40,55)
+minBox.Text = "1"
+minBox.ClearTextOnFocus = false
+minBox.Font = Enum.Font.Gotham
+minBox.TextSize = 16
+minBox.TextColor3 = Color3.fromRGB(255,255,255)
+
+minBox.Focused:Connect(function()
+    if minBox.Text == "1" then minBox.Text = "" end
+end)
+minBox.FocusLost:Connect(function()
+    local v = tonumber(minBox.Text)
+    if not v or v <= 0 then minBox.Text = "1" end
+end)
+
+-- Rarities dropdown
+local labelBR = Instance.new("TextLabel", main)
+labelBR.Position = UDim2.new(0,10,0,168)
+labelBR.Size = UDim2.new(1,-20,0,20)
+labelBR.BackgroundTransparency = 1
+labelBR.Text = "Tipo (rarity):"
+labelBR.Font = Enum.Font.Gotham
+labelBR.TextSize = 14
+labelBR.TextColor3 = Color3.fromRGB(230,230,230)
+
+local brainrotRarities = {"Common","Rare","Epic","Legendary","Mythic","Brainrot God","Secret","OG"}
+local selectedRarity = brainrotRarities[1]
+
+local dropdownBtn = Instance.new("TextButton", main)
+dropdownBtn.Position = UDim2.new(0,10,0,192)
+dropdownBtn.Size = UDim2.new(1,-20,0,36)
+dropdownBtn.BackgroundColor3 = Color3.fromRGB(40,40,55)
+dropdownBtn.Text = selectedRarity
+dropdownBtn.Font = Enum.Font.Gotham
+dropdownBtn.TextSize = 15
+dropdownBtn.TextColor3 = Color3.fromRGB(255,255,255)
+
+local optionsFrame = Instance.new("ScrollingFrame", main)
+optionsFrame.Name = "OptionsFrame"
+optionsFrame.Position = UDim2.new(0,10,0,238)
+optionsFrame.Size = UDim2.new(1,-20,0,150)
+optionsFrame.CanvasSize = UDim2.new(0,0,0,0)
+optionsFrame.ScrollBarThickness = 6
+optionsFrame.BackgroundColor3 = Color3.fromRGB(36,36,44)
+optionsFrame.Visible = false
+optionsFrame.BorderSizePixel = 0
+optionsFrame.ClipsDescendants = true
+
+local layout = Instance.new("UIListLayout", optionsFrame)
+layout.Padding = UDim.new(0,6)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    optionsFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 8)
+end)
+
+for i,name in ipairs(brainrotRarities) do
+    local opt = Instance.new("TextButton")
+    opt.Size = UDim2.new(1,-8,0,32)
+    opt.LayoutOrder = i
+    opt.BackgroundColor3 = Color3.fromRGB(50,50,62)
+    opt.TextColor3 = Color3.fromRGB(255,255,255)
+    opt.Font = Enum.Font.Gotham
+    opt.TextSize = 14
+    opt.Text = name
+    opt.Parent = optionsFrame
+    opt.MouseButton1Click:Connect(function()
+        selectedRarity = name
+        dropdownBtn.Text = name
+        optionsFrame.Visible = false
+    end)
+end
+
+dropdownBtn.MouseButton1Click:Connect(function()
+    optionsFrame.Visible = not optionsFrame.Visible
+end)
+
+local function isInsideGui(point, gui)
+    local pos = gui.AbsolutePosition
+    local size = gui.AbsoluteSize
+    return point.X>=pos.X and point.X<=pos.X+size.X and point.Y>=pos.Y and point.Y<=pos.Y+size.Y
+end
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+        local mousePos = UserInputService:GetMouseLocation()
+        if optionsFrame.Visible and not isInsideGui(mousePos, main) then
+            optionsFrame.Visible=false
+        end
+    end
+end)
+
+local statusLabel = Instance.new("TextLabel", main)
+statusLabel.Position = UDim2.new(0,10,1,-48)
+statusLabel.Size = UDim2.new(1,-20,0,36)
+statusLabel.BackgroundColor3 = Color3.fromRGB(28,28,34)
+statusLabel.Text = "Estado: Inactivo"
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 14
+statusLabel.TextColor3 = Color3.fromRGB(200,200,200)
+
+-- ---------- AUTO JOIN FUNCIONAL ----------
+local autoJoinActive = false
+
+autoBtn.MouseButton1Click:Connect(function()
+    autoJoinActive = not autoJoinActive
+    autoBtn.Text = "Auto Join: "..(autoJoinActive and "ON" or "OFF")
+    autoBtn.TextColor3 = autoJoinActive and Color3.fromRGB(80,255,120) or Color3.fromRGB(255,80,80)
+
+    if autoJoinActive then
+        spawn(function()
+            local visitedSet = {}
+            while autoJoinActive do
+                wait(MIN_DELAY)
+                local minMSVal = tonumber(minBox.Text) or 1
+                local servers = {}
+
+                local cursor
+                repeat
+                    local url = "https://games.roblox.com/v1/games/"..tostring(game.PlaceId).."/servers/Public?sortOrder=Asc&limit=100"..(cursor and "&cursor="..cursor or "")
+                    local body = pcall(function() return game:HttpGet(url) end)
+                    if not body then break end
+                    local ok, data = pcall(function() return HttpService:JSONDecode(body) end)
+                    if not ok or not data or not data.data then break end
+                    for _, s in ipairs(data.data) do
+                        local id = tostring(s.id)
+                        if s.playing < s.maxPlayers and id ~= tostring(game.JobId) and not visitedSet[id] then
+                            table.insert(servers, {id = id, playing = s.playing, maxPlayers = s.maxPlayers})
+                        end
+                    end
+                    cursor = data.nextPageCursor
+                until not cursor
+
+                local foundServer
+                for _, s in ipairs(servers) do
+                    if s.maxPlayers - s.playing >= minMSVal then
+                        local success, hasRare = pcall(function()
+                            local event = ReplicatedStorage:WaitForChild("CheckRaretyServer")
+                            return event:InvokeServer(s.id, selectedRarity)
+                        end)
+                        if success and hasRare then
+                            foundServer = s
+                            break
+                        end
+                    end
+                end
+
+                if foundServer then
+                    statusLabel.Text = "Estado: Servidor encontrado ✅ (ID: "..foundServer.id..")"
+                    visitedSet[foundServer.id] = true
+                    autoJoinActive = false
+                    autoBtn.Text = "Auto Join: OFF"
+                    autoBtn.TextColor3 = Color3.fromRGB(255,80,80)
+                    pcall(function()
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, foundServer.id, player)
+                    end)
+                    break
+                else
+                    statusLabel.Text = "Estado: No cumple, buscando siguiente..."
+                end
+            end
+        end)
+    end
+end)
