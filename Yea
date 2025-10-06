@@ -1,0 +1,205 @@
+-- Ondeado_exe - HUD compacto + AutoJoin
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local MIN_DELAY = 0.1
+
+-- ---------- UI ----------
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+screenGui.Name = "Ondeado_exe"
+
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 250, 0, 380)
+main.Position = UDim2.new(0.35,0,0.18,0)
+main.BackgroundColor3 = Color3.fromRGB(23,23,30)
+main.BorderSizePixel = 0
+main.Active = true
+main.Draggable = true
+main.Parent = screenGui
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,12)
+
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1,0,0,32)
+title.BackgroundTransparency = 1
+title.Text = "Ondeado_exe"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.TextColor3 = Color3.fromRGB(255,255,255)
+
+-- AutoJoin button
+local autoBtn = Instance.new("TextButton", main)
+autoBtn.Size = UDim2.new(1,-20,0,36)
+autoBtn.Position = UDim2.new(0,10,0,38)
+autoBtn.BackgroundColor3 = Color3.fromRGB(40,40,55)
+autoBtn.Text = "Auto Join: OFF"
+autoBtn.Font = Enum.Font.GothamBold
+autoBtn.TextSize = 14
+autoBtn.TextColor3 = Color3.fromRGB(255,80,80)
+
+-- Min M/s
+local minLabel = Instance.new("TextLabel", main)
+minLabel.Position = UDim2.new(0,10,0,78)
+minLabel.Size = UDim2.new(1,-20,0,18)
+minLabel.BackgroundTransparency = 1
+minLabel.Text = "Min M/s:"
+minLabel.Font = Enum.Font.Gotham
+minLabel.TextSize = 12
+minLabel.TextColor3 = Color3.fromRGB(230,230,230)
+
+local minBox = Instance.new("TextBox", main)
+minBox.Position = UDim2.new(0,10,0,96)
+minBox.Size = UDim2.new(1,-20,0,28)
+minBox.BackgroundColor3 = Color3.fromRGB(40,40,55)
+minBox.Text = "1"
+minBox.ClearTextOnFocus = false
+minBox.Font = Enum.Font.Gotham
+minBox.TextSize = 14
+minBox.TextColor3 = Color3.fromRGB(255,255,255)
+
+minBox.Focused:Connect(function() if minBox.Text=="1" then minBox.Text="" end end)
+minBox.FocusLost:Connect(function() if not tonumber(minBox.Text) or tonumber(minBox.Text)<=0 then minBox.Text="1" end end)
+
+-- Rarities dropdown
+local labelBR = Instance.new("TextLabel", main)
+labelBR.Position = UDim2.new(0,10,0,130)
+labelBR.Size = UDim2.new(1,-20,0,18)
+labelBR.BackgroundTransparency = 1
+labelBR.Text = "Tipo (rarity):"
+labelBR.Font = Enum.Font.Gotham
+labelBR.TextSize = 12
+labelBR.TextColor3 = Color3.fromRGB(230,230,230)
+
+local brainrotRarities = {"Common","Rare","Epic","Legendary","Mythic","Brainrot God","Secret","OG"}
+local selectedRarity = brainrotRarities[1]
+
+local dropdownBtn = Instance.new("TextButton", main)
+dropdownBtn.Position = UDim2.new(0,10,0,148)
+dropdownBtn.Size = UDim2.new(1,-20,0,28)
+dropdownBtn.BackgroundColor3 = Color3.fromRGB(40,40,55)
+dropdownBtn.Text = selectedRarity
+dropdownBtn.Font = Enum.Font.Gotham
+dropdownBtn.TextSize = 13
+dropdownBtn.TextColor3 = Color3.fromRGB(255,255,255)
+
+local optionsFrame = Instance.new("ScrollingFrame", main)
+optionsFrame.Position = UDim2.new(0,10,0,180)
+optionsFrame.Size = UDim2.new(1,-20,0,120)
+optionsFrame.CanvasSize = UDim2.new(0,0,0,0)
+optionsFrame.ScrollBarThickness = 6
+optionsFrame.BackgroundColor3 = Color3.fromRGB(36,36,44)
+optionsFrame.Visible = false
+optionsFrame.BorderSizePixel = 0
+optionsFrame.ClipsDescendants = true
+local layout = Instance.new("UIListLayout", optionsFrame)
+layout.Padding = UDim.new(0,4)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    optionsFrame.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 4)
+end)
+
+for i,name in ipairs(brainrotRarities) do
+    local opt = Instance.new("TextButton")
+    opt.Size = UDim2.new(1,-4,0,26)
+    opt.LayoutOrder = i
+    opt.BackgroundColor3 = Color3.fromRGB(50,50,62)
+    opt.TextColor3 = Color3.fromRGB(255,255,255)
+    opt.Font = Enum.Font.Gotham
+    opt.TextSize = 12
+    opt.Text = name
+    opt.Parent = optionsFrame
+    opt.MouseButton1Click:Connect(function()
+        selectedRarity = name
+        dropdownBtn.Text = name
+        optionsFrame.Visible = false
+    end)
+end
+
+dropdownBtn.MouseButton1Click:Connect(function()
+    optionsFrame.Visible = not optionsFrame.Visible
+end)
+
+UserInputService.InputBegan:Connect(function(input,processed)
+    if processed then return end
+    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+        local mousePos = UserInputService:GetMouseLocation()
+        if optionsFrame.Visible and (mousePos.X < main.AbsolutePosition.X or mousePos.X > main.AbsolutePosition.X+main.AbsoluteSize.X or
+           mousePos.Y < main.AbsolutePosition.Y or mousePos.Y > main.AbsolutePosition.Y+main.AbsoluteSize.Y) then
+            optionsFrame.Visible=false
+        end
+    end
+end)
+
+local statusLabel = Instance.new("TextLabel", main)
+statusLabel.Position = UDim2.new(0,10,1,-40)
+statusLabel.Size = UDim2.new(1,-20,0,32)
+statusLabel.BackgroundColor3 = Color3.fromRGB(28,28,34)
+statusLabel.Text = "Estado: Inactivo"
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 12
+statusLabel.TextColor3 = Color3.fromRGB(200,200,200)
+
+-- ---------- AUTO JOIN ----------
+local autoJoinActive = false
+
+autoBtn.MouseButton1Click:Connect(function()
+    autoJoinActive = not autoJoinActive
+    autoBtn.Text = "Auto Join: "..(autoJoinActive and "ON" or "OFF")
+    autoBtn.TextColor3 = autoJoinActive and Color3.fromRGB(80,255,120) or Color3.fromRGB(255,80,80)
+
+    if autoJoinActive then
+        spawn(function()
+            local visitedSet = {}
+            while autoJoinActive do
+                wait(MIN_DELAY)
+                local minMSVal = tonumber(minBox.Text) or 1
+                local servers = {}
+                local cursor
+                repeat
+                    local ok, body = pcall(function()
+                        return game:HttpGet("https://games.roblox.com/v1/games/"..tostring(game.PlaceId).."/servers/Public?sortOrder=Asc&limit=100"..(cursor and "&cursor="..cursor or ""))
+                    end)
+                    if not ok then break end
+                    local data = HttpService:JSONDecode(body)
+                    if not data or not data.data then break end
+                    for _,s in ipairs(data.data) do
+                        local id = tostring(s.id)
+                        if s.playing < s.maxPlayers and id~=tostring(game.JobId) and not visitedSet[id] then
+                            table.insert(servers,{id=id,playing=s.playing,maxPlayers=s.maxPlayers})
+                        end
+                    end
+                    cursor = data.nextPageCursor
+                until not cursor
+
+                local foundServer
+                for _,s in ipairs(servers) do
+                    if s.maxPlayers - s.playing >= minMSVal then
+                        local success, hasRare = pcall(function()
+                            local event = ReplicatedStorage:WaitForChild("CheckRaretyServer")
+                            return event:InvokeServer(s.id, selectedRarity)
+                        end)
+                        if success and hasRare then
+                            foundServer = s
+                            break
+                        end
+                    end
+                end
+
+                if foundServer then
+                    statusLabel.Text = "Estado: Servidor encontrado ✅ (ID:"..foundServer.id..")"
+                    visitedSet[foundServer.id]=true
+                    autoJoinActive=false
+                    autoBtn.Text="Auto Join: OFF"
+                    autoBtn.TextColor3=Color3.fromRGB(255,80,80)
+                    pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, foundServer.id, player) end)
+                    break
+                else
+                    statusLabel.Text="Estado: No cumple, buscando..."
+                end
+            end
+        end)
+    end
+end)
